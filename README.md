@@ -3,7 +3,7 @@
 
 ### Experimental firmware project with **RUST** and **STM32G0**.
 
-Parallel to Serial Gender for Korean Paper Dispenser Machine.
+Parallel to Serial Adapter for Korean Paper Dispenser Machine.
 Some wellknown korean paper dispenser have two type of device.
 Serial model communicate to host with RS232.
 Parallel model communicate with open-drain based on to pull-up lines (3in/3out).
