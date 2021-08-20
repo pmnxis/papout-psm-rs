@@ -10,12 +10,11 @@ extern crate stm32g0xx_hal as hal;
 
 use cortex_m_semihosting::hprintln;
 use hal::exti::Event;
-use hal::gpio::gpioa::PA5;
+use hal::gpio;
 use hal::gpio::{Output, PushPull, SignalEdge};
 use hal::prelude::*;
-use hal::rtc::Rtc;
-use hal::stm32;
-use hal::time::*;
+// use hal::rtc::Rtc;
+use hal::stm32::{self, Interrupt};
 use hal::timer::Timer;
 use rtic::app;
 
@@ -24,8 +23,7 @@ const APP: () = {
     struct Resources {
         exti: stm32::EXTI,
         timer: Timer<stm32::TIM17>,
-        led: PA5<Output<PushPull>>,
-        rtc: Rtc,
+        heartbeat: gpio::gpiob::PB8<Output<PushPull>>,
     }
 
     // Just borrowed from examples for now.
@@ -33,38 +31,49 @@ const APP: () = {
     #[init]
     fn init(mut ctx: init::Context) -> init::LateResources {
         let mut rcc = ctx.device.RCC.constrain();
+        rtic::pend(Interrupt::USART2);
+
+
         let gpioa = ctx.device.GPIOA.split(&mut rcc);
-        let gpioc = ctx.device.GPIOC.split(&mut rcc);
+        let gpiob = ctx.device.GPIOB.split(&mut rcc);
 
         let mut timer = ctx.device.TIM17.timer(&mut rcc);
-        timer.start(3.hz());
+        timer.start(1000.hz());
         timer.listen();
 
-        gpioc.pc13.listen(SignalEdge::Falling, &mut ctx.device.EXTI);
+        gpioa.pa4.listen(SignalEdge::All, &mut ctx.device.EXTI);
+        gpioa.pa5.listen(SignalEdge::All, &mut ctx.device.EXTI);
+        gpioa.pa6.listen(SignalEdge::All, &mut ctx.device.EXTI);
 
-        let mut rtc = ctx.device.RTC.constrain(&mut rcc);
-        rtc.set_date(&Date::new(2019.year(), 11.month(), 24.day()));
-        rtc.set_time(&Time::new(21.hours(), 15.minutes(), 10.seconds(), false));
+        // let mut rtc = ctx.device.RTC.constrain(&mut rcc);
+
+        hprintln!("Hello Rust").unwrap();
 
         init::LateResources {
             timer,
-            rtc,
             exti: ctx.device.EXTI,
-            led: gpioa.pa5.into_push_pull_output(),
+            heartbeat: gpiob.pb8.into_push_pull_output(),
         }
     }
 
-    #[task(binds = TIM17, resources = [led, timer])]
+    #[idle]
+    fn idle(_: idle::Context) -> ! {
+        loop {
+            for i in 0..10000{
+                hprintln!("Hello Rust - {} times.", i).unwrap();
+            }
+        }
+    }
+
+    #[task(binds = TIM17, resources = [heartbeat, timer])]
     fn timer_tick(ctx: timer_tick::Context) {
-        ctx.resources.led.toggle().unwrap();
+        ctx.resources.heartbeat.toggle().unwrap();
         ctx.resources.timer.clear_irq();
     }
 
-    #[task(binds = EXTI4_15, resources = [exti, rtc])]
+    #[task(binds = EXTI4_15, resources = [exti])]
     fn button_click(ctx: button_click::Context) {
-        let date = ctx.resources.rtc.get_date();
-        let time = ctx.resources.rtc.get_time();
-        hprintln!("Button pressed @ {:?} {:?}", date, time).unwrap();
+        hprintln!("Button pressed").unwrap();
         ctx.resources.exti.unpend(Event::GPIO13);
     }
 };
