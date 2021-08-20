@@ -25,6 +25,12 @@ Parallel model communicate with open-drain based on to pull-up lines (3in/3out).
 - OpenOcd Issue Notes : [OpenOcd Issue Notes](docs/OpenOcdIssue.md)
 - Vscode Related Notes : [VSCODE](.vscode/README.md)
 
+## Flashing
+- Flashing : https://probe.rs/docs/tools/cargo-flash/
+```shell
+cargo flash --release --chip STM32G030F6Px
+```
+
 ## Debug 
 
 ```shell
