@@ -1,40 +1,39 @@
 {
+    /* 
+     * Requires the Rust Language Server (RLS) and Cortex-Debug extensions
+     * https://marketplace.visualstudio.com/items?itemName=rust-lang.rust
+     * https://marketplace.visualstudio.com/items?itemName=marus25.cortex-debug
+     */
     "version": "0.2.0",
     "configurations": [
         {
-            "preLaunchTask": "${defaultBuildTask}",
-            "type": "probe-rs-debug",
+            /* Configuration for the STM32G030 */
+            "type": "cortex-debug",
             "request": "launch",
-            "name": "probe_rs Executable Test",
-            "cwd": "${workspaceFolder}",
-            "program_binary": "target/thumbv6m-none-eabi/debug/papout-psm-rs",
-            "chip": "STM32G030F6Px",
-            "connect_under_reset": true,
-            "speed": 24000,
-            "runtimeExecutable": "probe-rs-debugger",
-            "runtimeArgs": [
-                "debug",
-                "--dap"
+            "name": "Debug (OpenOCD)",
+            "servertype": "openocd",
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "Cargo Build (debug)",
+            "runToMain": true,
+            "executable": "./target/thumbv6m-none-eabi/debug/papout-psm-rs",
+            /* Run `cargo build --example itm` and uncomment this line to run itm example */
+            // "executable": "./target/thumbv6m-none-eabi/debug/examples/itm",
+            "device": "STM32G030F6P6",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32g0x.cfg"
             ],
-            "core_index": 0,
-            "flashing_enabled": true,
-            "reset_after_flashing": true,
-            "halt_after_reset": true,
-            "console_log_level": "Info",
-            // // ... <snip> ...
-            // "rtt_enabled": true,
-            // "rtt_timeout": 300,
-            // "rtt_channel_formats": [
-            //     {
-            //         "channel_number": 0,
-            //         "data_format": "String", // Format RTT data as String data
-            //         "show_timestamps": true  // Include host-side timestamps for every line of data transferred from the target RTT output
-            //     },
-            //     {
-            //         "channel_number": 1,
-            //         "data_format": "BinaryLE" // Treat data as raw binary data, and do not format in any way
-            //     }
-            // ]
+            "svdFile": "${workspaceRoot}/.vscode/STM32G030.svd",
+            // Todo, need to check this .
+            "swoConfig": {
+                "enabled": true,
+                "cpuFrequency": 8000000,
+                "swoFrequency": 2000000,
+                "source": "probe",
+                "decoders": [
+                    { "type": "console", "label": "ITM", "port": 0 }
+                ]
+            }
         }
     ]
 }

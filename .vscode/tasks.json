@@ -7,13 +7,40 @@
             "type": "cargo",
             "command": "build",
             "problemMatcher": [
-              "$rustc"
+                "$rustc"
             ],
             "group": {
-              "kind": "build",
-              "isDefault": true
+                "kind": "build",
+                "isDefault": true
             },
             "label": "rust: cargo build"
         },
+        {
+            "type": "cargo",
+            "command": "build",
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "build",
+            "label": "rust: cargo build"
+        },
+        {
+            /*
+             * This is the default cargo build task,
+             * but we need to provide a label for it,
+             * so we can invoke it from the debug launcher.
+             */
+            "label": "Cargo Build (debug)",
+            "type": "process",
+            "command": "cargo",
+            "args": ["build"],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
     ]
 }
