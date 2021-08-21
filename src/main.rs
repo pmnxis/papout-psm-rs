@@ -9,7 +9,6 @@ extern crate rtic;
 extern crate nb;
 extern crate stm32g0xx_hal as hal;
 
-use cortex_m_semihosting::hprintln;
 use hal::gpio;
 use hal::gpio::{Output, PushPull};
 use hal::prelude::*;
@@ -20,10 +19,8 @@ use hal::rcc::Config;
 use hal::rcc::Prescaler;
 use hal::timer::Timer;
 use nb::block;
-use rtic::app;
 
-
-#[app(device = hal::stm32, peripherals = true)]
+#[rtic::app(device = hal::stm32, peripherals = true)]
 const APP: () = {
     struct Resources {
         indicator_timer: Timer<stm32::TIM17>,
@@ -48,7 +45,6 @@ const APP: () = {
     let mut indicator_timer = ctx.device.TIM17.timer(&mut rcc);
     indicator_timer.start(500.ms());
 
-    hprintln!("Hello Rust").unwrap();
 
         init::LateResources {
             indicator_timer,
