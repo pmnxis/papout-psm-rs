@@ -6,22 +6,35 @@
             "type": "probe-rs-debug",
             "request": "launch",
             "name": "probe_rs Executable Test",
-            "program_binary": "target/thumbv6m-none-eabi/debug/papout-psm-rs", //!MODIFY
+            "cwd": "${workspaceFolder}",
+            "program_binary": "target/thumbv6m-none-eabi/debug/papout-psm-rs",
             "chip": "STM32G030F6Px",
-            // ... <snip> ...
-            "rtt_enabled": true,
-            "rtt_timeout": 300,
-            "rtt_channel_formats": [
-                {
-                    "channel_number": 0,
-                    "data_format": "String", // Format RTT data as String data
-                    "show_timestamps": true  // Include host-side timestamps for every line of data transferred from the target RTT output
-                },
-                {
-                    "channel_number": 1,
-                    "data_format": "BinaryLE" // Treat data as raw binary data, and do not format in any way
-                }
-            ]
+            "connect_under_reset": true,
+            "speed": 24000,
+            "runtimeExecutable": "probe-rs-debugger",
+            "runtimeArgs": [
+                "debug",
+                "--dap"
+            ],
+            "core_index": 0,
+            "flashing_enabled": true,
+            "reset_after_flashing": true,
+            "halt_after_reset": true,
+            "console_log_level": "Info",
+            // // ... <snip> ...
+            // "rtt_enabled": true,
+            // "rtt_timeout": 300,
+            // "rtt_channel_formats": [
+            //     {
+            //         "channel_number": 0,
+            //         "data_format": "String", // Format RTT data as String data
+            //         "show_timestamps": true  // Include host-side timestamps for every line of data transferred from the target RTT output
+            //     },
+            //     {
+            //         "channel_number": 1,
+            //         "data_format": "BinaryLE" // Treat data as raw binary data, and do not format in any way
+            //     }
+            // ]
         }
     ]
 }

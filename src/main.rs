@@ -51,9 +51,9 @@ const APP: () = {
         hprintln!("Hello Rust").unwrap();
 
         init::LateResources {
-            heartbeat_timer,
             exti: ctx.device.EXTI,
             exti_indicator: gpiob.pb9.into_push_pull_output(),
+            heartbeat_timer,
             heartbeat: gpiob.pb8.into_push_pull_output(),
         }
     }

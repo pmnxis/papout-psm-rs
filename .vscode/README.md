@@ -95,5 +95,5 @@ For other processors, simply copy the correct `*.svd` file into the project and 
 If your device is running at a frequency other than 8MHz, you'll need to modify this line of `launch.json` for the `ITM` output to work correctly.
 
 ```json
-"cpuFrequency": 8000000,
+"cpuFrequency": 16000000,
 ```
