@@ -1,1 +1,1 @@
-cargo flash --release --chip STM32G030F6Px
+cargo flash --release --chip STM32G031K8Tx

@@ -28,7 +28,7 @@ Parallel model communicate with open-drain based on to pull-up lines (3in/3out).
 ## Flashing
 - Flashing : https://probe.rs/docs/tools/cargo-flash/
 ```shell
-cargo flash --release --chip STM32G030F6Px
+cargo flash --release --chip STM32G031K8Tx
 ```
 
 ## Debug - Fancy
@@ -39,7 +39,7 @@ cargo install --git https://github.com/probe-rs/probe-rs probe-rs-debugger
 # Install probe-rs-debugger for Vscode with latest VSIX
 # https://github.com/probe-rs/vscode/releases
 
-probe-rs-debugger debug --chip STM32G030F6Px --speed 2000 --probe 0483:374f --program-binary ./target/thumbv6m-none-eabi/debug/papout-psm-rs --protocol swd --connect-under-reset  --core-index 0 --flashing-enabled --reset-after-flashing --halt-after-reset
+probe-rs-debugger debug --chip STM32G031K8Tx --speed 2000 --probe 0483:374f --program-binary ./target/thumbv6m-none-eabi/debug/papout-psm-rs --protocol swd --connect-under-reset  --core-index 0 --flashing-enabled --reset-after-flashing --halt-after-reset
 ```
 
 ## Debug - Traditional
@@ -54,6 +54,10 @@ load
 monitor arm semihosting enable
 break idle
 continue
+```
+
+```Trick
+ln -s /usr/bin/gdb-multiarch /usr/bin/arm-none-eabi-gdb
 ```
 
 ## License
