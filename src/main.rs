@@ -39,6 +39,7 @@ mod app {
     #[allow(unused_mut)]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         rtt_init_print!();
+        rprintln!("LambdaEE!");
 
         let mut rcc = ctx.device.RCC.freeze(Config::hsi(Prescaler::NotDivided));
 
@@ -71,6 +72,7 @@ mod app {
     fn idle(ctx: idle::Context) -> ! {
         loop {
             ctx.local.indicator.toggle().unwrap();
+            rprintln!("Lambda : I need chewru");
             block!(ctx.local.indicator_timer.wait()).unwrap();
         }
     }

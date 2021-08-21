@@ -2,7 +2,7 @@
 
 | 3D Model | Real Image |
 | -------- | ---------- |
-| ![PCB 3D MODEL](./docs/pcb_image.png) | ![RealImg](./docs/RealImage.jpg)
+| ![PCB 3D MODEL](./docs/pcb_image.png) | ![RealImg](./docs/RealImage.jpg) |
 | Kicad 5.99 Modeling | 24v->12v dcdc have a problem |
 _Currently working with PCB modification on DCDC_
 
@@ -41,6 +41,15 @@ cargo install --git https://github.com/probe-rs/probe-rs probe-rs-debugger
 
 probe-rs-debugger debug --chip STM32G030F6Px --speed 2000 --probe 0483:374f --program-binary ./target/thumbv6m-none-eabi/debug/papout-psm-rs --protocol swd --connect-under-reset  --core-index 0 --flashing-enabled --reset-after-flashing --halt-after-reset
 ```
+
+## Debuging with RTT-Target 
+![RealImg](./docs/rtt.png)
+```
+# Install cargo-embed if you don't have
+cargo install cargo-embed
+cargo-embed --chip STM32G030F6Px
+```
+cargo-embed serve you terminal between target and host through rust and SWD.
 
 ## Debug - Traditional
 

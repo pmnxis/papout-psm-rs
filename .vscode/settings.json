@@ -1,0 +1,26 @@
+{
+	"editor.formatOnSave": false,
+    "[cpp]": {
+        "editor.quickSuggestions": true,
+        "editor.formatOnSave": true
+    },
+    "[c]": {
+        "editor.quickSuggestions": true,
+        "editor.formatOnSave": true
+    },
+    "[rust]": {
+        "editor.quickSuggestions": true,
+        "editor.formatOnSave": true
+    },
+    "editor.suggest.showStatusBar": true,
+	"debug.onTaskErrors": "abort",
+	"rust-analyzer.checkOnSave.allTargets": false,
+	"rust-analyzer.checkOnSave.extraArgs": [
+		"--target",
+		"thumbv6m-none-eabihf"
+	],
+	"rust-analyzer.updates.channel": "nightly",
+	"files.associations": {
+		"*.x": "linkerscript"
+	}
+}
