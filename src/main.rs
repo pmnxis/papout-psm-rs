@@ -1,37 +1,45 @@
+// RTIC v6 version.
+
 #![no_std]
 #![no_main]
-#![deny(warnings)]
+#![allow(warnings)]
 
-extern crate cortex_m;
-extern crate cortex_m_rt as rt;
-extern crate nb;
-extern crate panic_semihosting;
-extern crate rtic;
-extern crate stm32g0xx_hal as hal;
+use panic_rtt_target as _panic_handler;
 
-use hal::gpio;
-use hal::gpio::{Output, PushPull};
-use hal::prelude::*;
-// use hal::rtc::Rtc;
-// use hal::stm32::{self, Interrupt};
-use hal::rcc::Config;
-use hal::rcc::Prescaler;
-use hal::stm32::{self};
-use hal::timer::Timer;
-use nb::block;
+#[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true)]
+mod app {
+    /* bring dependencies into scope */
+    use nb::block;
+    use rtt_target::{rprintln, rtt_init_print};
+    use stm32g0xx_hal::{
+        gpio::*,
+        prelude::*,
+        rcc::{Config, Prescaler},
+        stm32::{TIM16, TIM17},
+        timer::Timer,
+    };
 
-#[rtic::app(device = hal::stm32, peripherals = true)]
-const APP: () = {
-    struct Resources {
-        indicator_timer: Timer<stm32::TIM17>,
-        indicator: gpio::gpiob::PB9<Output<PushPull>>,
-        heartbeat_timer: Timer<stm32::TIM16>,
-        heartbeat: gpio::gpiob::PB8<Output<PushPull>>,
+    /* resources shared across RTIC tasks */
+    #[shared]
+    struct Shared {
+        /// the last observed position of the turret
+        shared_integer: u32,
+    }
+
+    /* resources local to specific RTIC tasks */
+    #[local]
+    struct Local {
+        indicator_timer: Timer<TIM17>,
+        indicator: gpiob::PB9<Output<PushPull>>,
+        heartbeat_timer: Timer<TIM16>,
+        heartbeat: gpiob::PB8<Output<PushPull>>,
     }
 
     #[init]
     #[allow(unused_mut)]
-    fn init(mut ctx: init::Context) -> init::LateResources {
+    fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
+        rtt_init_print!();
+
         let mut rcc = ctx.device.RCC.freeze(Config::hsi(Prescaler::NotDivided));
 
         let gpiob = ctx.device.GPIOB.split(&mut rcc);
@@ -43,25 +51,33 @@ const APP: () = {
         let mut indicator_timer = ctx.device.TIM17.timer(&mut rcc);
         indicator_timer.start(500.ms());
 
-        init::LateResources {
-            indicator_timer,
-            indicator: gpiob.pb9.into_push_pull_output(),
-            heartbeat_timer,
-            heartbeat: gpiob.pb8.into_push_pull_output(),
-        }
+        let mut sharing: u32 = 0;
+
+        (
+            Shared {
+                shared_integer: sharing,
+            },
+            Local {
+                indicator_timer: indicator_timer,
+                indicator: gpiob.pb9.into_push_pull_output(),
+                heartbeat_timer: heartbeat_timer,
+                heartbeat: gpiob.pb8.into_push_pull_output(),
+            },
+            init::Monotonics(),
+        )
     }
 
-    #[idle(resources = [indicator, indicator_timer])]
+    #[idle(local = [indicator, indicator_timer])]
     fn idle(ctx: idle::Context) -> ! {
         loop {
-            ctx.resources.indicator.toggle().unwrap();
-            block!(ctx.resources.indicator_timer.wait()).unwrap();
+            ctx.local.indicator.toggle().unwrap();
+            block!(ctx.local.indicator_timer.wait()).unwrap();
         }
     }
 
-    #[task(binds = TIM16, resources = [heartbeat, heartbeat_timer])]
+    #[task(binds = TIM16, local = [heartbeat, heartbeat_timer])]
     fn timer_tick(ctx: timer_tick::Context) {
-        ctx.resources.heartbeat.toggle().unwrap();
-        ctx.resources.heartbeat_timer.clear_irq();
+        ctx.local.heartbeat.toggle().unwrap();
+        ctx.local.heartbeat_timer.clear_irq();
     }
-};
+}
