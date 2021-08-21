@@ -4,9 +4,9 @@
 
 extern crate cortex_m;
 extern crate cortex_m_rt as rt;
+extern crate nb;
 extern crate panic_semihosting;
 extern crate rtic;
-extern crate nb;
 extern crate stm32g0xx_hal as hal;
 
 use hal::gpio;
@@ -14,9 +14,9 @@ use hal::gpio::{Output, PushPull};
 use hal::prelude::*;
 // use hal::rtc::Rtc;
 // use hal::stm32::{self, Interrupt};
-use hal::stm32::{self};
 use hal::rcc::Config;
 use hal::rcc::Prescaler;
+use hal::stm32::{self};
 use hal::timer::Timer;
 use nb::block;
 
@@ -32,19 +32,16 @@ const APP: () = {
     #[init]
     #[allow(unused_mut)]
     fn init(mut ctx: init::Context) -> init::LateResources {
-    let mut rcc = ctx.device.RCC.freeze(
-        Config::hsi(Prescaler::NotDivided));
+        let mut rcc = ctx.device.RCC.freeze(Config::hsi(Prescaler::NotDivided));
 
-    let gpiob = ctx.device.GPIOB.split(&mut rcc);
+        let gpiob = ctx.device.GPIOB.split(&mut rcc);
 
-    let mut heartbeat_timer = ctx.device.TIM16.timer(&mut rcc);
-    heartbeat_timer.start(500.ms());
-    heartbeat_timer.listen();
+        let mut heartbeat_timer = ctx.device.TIM16.timer(&mut rcc);
+        heartbeat_timer.start(500.ms());
+        heartbeat_timer.listen();
 
-    
-    let mut indicator_timer = ctx.device.TIM17.timer(&mut rcc);
-    indicator_timer.start(500.ms());
-
+        let mut indicator_timer = ctx.device.TIM17.timer(&mut rcc);
+        indicator_timer.start(500.ms());
 
         init::LateResources {
             indicator_timer,
