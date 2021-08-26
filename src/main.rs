@@ -27,16 +27,16 @@ fn main() -> ! {
             gpioa.pa2,
             gpioa.pa3,
             FullConfig::default()
-                .baudrate(115200.bps())
+                .baudrate(9600.bps())
                 .fifo_enable()
                 .rx_fifo_enable_interrupt()
-                .rx_fifo_threshold(FifoThreshold::FIFO_8_BYTES),
+                .rx_fifo_threshold(FifoThreshold::FIFO_4_BYTES),
             &mut rcc,
         )
         .unwrap();
 
     rtt_init_print!();
-    rprintln!("Hello USART2\r\n");
+    rprintln!("Hello USART2\n");
 
     let (mut tx1, mut rx1) = usart2.split();
 
@@ -51,6 +51,7 @@ fn main() -> ! {
                     }
                     Err(nb::Error::Other(_err)) => {
                         // Handle other error Overrun, Framing, Noise or Parity
+                        rprintln!("nb::Error::Other(_err)) =>");
                     }
                     Ok(byte) => {
                         rprintln!("{}: {}\n", cnt, byte);
