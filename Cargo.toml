@@ -18,8 +18,8 @@ version = "0.1.2"
 features = ["cortex-m"]
 
 [dependencies.stm32g0xx-hal]
-git = "https://github.com/stm32-rs/stm32g0xx-hal.git"
-# rev = "87ea74d320dec5b87c41ebf8c233382d7e626ceb"
+git = "https://github.com/pmnxis/stm32g0xx-hal.git"
+rev = "171920a6864981299cc1bb72470898e42369246a"
 features = ["stm32g030", "rt"]
 
 

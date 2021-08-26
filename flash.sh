@@ -1,1 +1,1 @@
-cargo flash --release --chip STM32G030F6Px --connect-under-reset
+cargo flash --release --chip STM32G030F6Px --connect-under-reset --reset-halt

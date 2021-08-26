@@ -14,8 +14,10 @@ mod app {
     use stm32g0xx_hal::{
         gpio::*,
         prelude::*,
-        rcc::{Config, Prescaler},
-        stm32::{TIM16, TIM17},
+        rcc::*,
+        serial::*,
+        // stm::{NVIC vector list what you use.}
+        stm32::{TIM16, TIM17, USART2},
         timer::Timer,
     };
 
@@ -23,7 +25,8 @@ mod app {
     #[shared]
     struct Shared {
         /// the last observed position of the turret
-        shared_integer: u32,
+        // Temporary use. (https://rtic.rs/dev/book/en/migration/migration_v5.html)
+        shared_integer: i32,
     }
 
     /* resources local to specific RTIC tasks */
@@ -33,6 +36,7 @@ mod app {
         indicator: gpiob::PB9<Output<PushPull>>,
         heartbeat_timer: Timer<TIM16>,
         heartbeat: gpiob::PB8<Output<PushPull>>,
+        serial: Serial<USART2, FullConfig>,
     }
 
     #[init]
@@ -43,6 +47,7 @@ mod app {
 
         let mut rcc = ctx.device.RCC.freeze(Config::hsi(Prescaler::NotDivided));
 
+        let mut gpioa = ctx.device.GPIOA.split(&mut rcc);
         let gpiob = ctx.device.GPIOB.split(&mut rcc);
 
         let mut heartbeat_timer = ctx.device.TIM16.timer(&mut rcc);
@@ -52,7 +57,22 @@ mod app {
         let mut indicator_timer = ctx.device.TIM17.timer(&mut rcc);
         indicator_timer.start(500.ms());
 
-        let mut sharing: u32 = 0;
+        let mut sharing: i32 = 0;
+
+        let mut usart2 = ctx
+            .device
+            .USART2
+            .usart(
+                gpioa.pa2,
+                gpioa.pa3,
+                FullConfig::default()
+                    .baudrate(9600.bps())
+                    .fifo_enable()
+                    .rx_fifo_enable_interrupt()
+                    .rx_fifo_threshold(FifoThreshold::FIFO_4_BYTES),
+                &mut rcc,
+            )
+            .unwrap();
 
         (
             Shared {
@@ -63,16 +83,22 @@ mod app {
                 indicator: gpiob.pb9.into_push_pull_output(),
                 heartbeat_timer: heartbeat_timer,
                 heartbeat: gpiob.pb8.into_push_pull_output(),
+                serial: usart2,
             },
             init::Monotonics(),
         )
     }
 
-    #[idle(local = [indicator, indicator_timer])]
-    fn idle(ctx: idle::Context) -> ! {
+    #[idle(shared = [shared_integer], local = [indicator, indicator_timer])]
+    fn idle(mut ctx: idle::Context) -> ! {
         loop {
+            // lock`
+            let mut copied: i32 = 0;
+            ctx.shared.shared_integer.lock(|x| copied = i32::clone(x));
+            // end of copy lock
+
             ctx.local.indicator.toggle().unwrap();
-            rprintln!("Lambda : I need chewru");
+            rprintln!("Lambda : I need chewru : Shared : {}", copied);
             block!(ctx.local.indicator_timer.wait()).unwrap();
         }
     }
@@ -81,5 +107,23 @@ mod app {
     fn timer_tick(ctx: timer_tick::Context) {
         ctx.local.heartbeat.toggle().unwrap();
         ctx.local.heartbeat_timer.clear_irq();
+    }
+
+    #[task(binds = USART2, shared = [shared_integer], local = [serial])]
+    fn usart_isr(mut ctx: usart_isr::Context) {
+        ctx.shared.shared_integer.lock(|x| *x = *x + 1);
+        match ctx.local.serial.read() {
+            Err(nb::Error::WouldBlock) => {
+                // no more data available in fifo
+                // Nothing to do
+            }
+            Err(nb::Error::Other(_err)) => {
+                // Handle other error Overrun, Framing, Noise or Parity
+                rprintln!("Serial : Error-Other");
+            }
+            Ok(byte) => {
+                rprintln!("Serial : {}", byte);
+            }
+        }
     }
 }

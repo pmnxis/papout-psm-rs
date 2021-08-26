@@ -1,0 +1,1 @@
+cargo-embed  --release --chip STM32G030F6Px
