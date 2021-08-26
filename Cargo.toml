@@ -6,7 +6,11 @@ name = "papout-psm-rs"
 version = "0.1.0"
 
 [dependencies]
-cortex-m-rtic = "0.6.0-alpha.5"
+cortex-m = "0.7.3"
+cortex-m-rt = "0.6.15"
+cortex-m-semihosting = "0.3.7"
+panic-halt = "0.2.0"
+panic-semihosting = "0.5.6"
 nb = "1.0.0"
 
 [dependencies.rtt-target]
