@@ -8,6 +8,7 @@ use panic_rtt_target as _panic_handler;
 
 #[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true)]
 mod app {
+    // use alloc::borrow::ToOwned;
     use core::convert::TryInto;
     use heapless::spsc::Queue;
     /* bring dependencies into scope */
@@ -23,12 +24,6 @@ mod app {
         stm32::{TIM16, TIM17, USART2},
         timer::Timer,
     };
-
-    pub struct SerialTap {
-        rx: Rx<USART2, BasicConfig>,
-        buffer: [u8; 4],
-        cnt: u8,
-    }
 
     pub enum CommandActionKind {
         SayHi,
@@ -59,19 +54,39 @@ mod app {
     pub enum ErrorKind {
         Empty,
         Jam,
-        Double,
+        BillDouble,
         NotEmit,
-        LengthShort,
         LengthLong,
-        NotSlide,
+        LengthShort,
+        RejOver,
         MotorLock,
         Incline,
         Ok, //?Maybe?
     }
 
+    macro_rules! sign_u8 {
+        ($foo: expr, $is_signed: expr) => {
+            ($foo & 0x20) | (0x20 * (!$is_signed as u8))
+        };
+    }
+
+    pub struct SerialTap {
+        rx: Rx<USART2, BasicConfig>,
+        buffer: [u8; 4],
+        cnt: u8,
+    }
+
     pub struct CommandAction {
         kind: CommandActionKind,
         data: u8,
+    }
+
+    // TypeCasting Internally for some pattern.
+    type UartTx = Tx<USART2, BasicConfig>;
+    type UartTxError = stm32g0xx_hal::serial::Error;
+
+    pub struct MainTask {
+        tx: UartTx,
     }
 
     /* resources shared across RTIC tasks */
@@ -95,6 +110,7 @@ mod app {
         output_reset: gpioa::PA8<Output<PushPull>>,
         output_inhibit: gpioa::PA11<Output<PushPull>>,
         testpoint: gpiob::PB6<Output<PushPull>>,
+        main_instance: MainTask,
     }
 
     #[init]
@@ -142,12 +158,6 @@ mod app {
 
         let (mut uart_tx, mut uart_rx) = usart2.split();
 
-        let mut serial_tap = SerialTap {
-            rx: uart_rx,
-            buffer: [0, 0, 0, 0],
-            cnt: 0,
-        };
-
         (
             Shared {
                 shared_integer: sharing,
@@ -157,21 +167,102 @@ mod app {
                 indicator: gpiob.pb9.into_push_pull_output(),
                 heartbeat_timer: heartbeat_timer,
                 heartbeat: gpiob.pb8.into_push_pull_output(),
-                serial: serial_tap,
+                serial: SerialTap {
+                    rx: uart_rx,
+                    buffer: [0, 0, 0, 0],
+                    cnt: 0,
+                },
                 output_pulse: gpioa.pa7.into_push_pull_output(),
                 output_reset: gpioa.pa8.into_push_pull_output(),
                 output_inhibit: gpioa.pa11.into_push_pull_output(),
                 testpoint: testpoint,
+                main_instance: MainTask { tx: uart_tx },
             },
             init::Monotonics(),
         )
     }
 
+    fn uart_write(tx: &mut UartTx, packet: (u8, u8, u8)) -> nb::Result<(), UartTxError> {
+        // Follow Return type from "FullDuplex<Word>::send(&mut self, word: Word)"
+        let array: [u8; 5] = [
+            b'$',
+            packet.0,
+            packet.1,
+            packet.2,
+            packet.0 + packet.1 + packet.2,
+        ];
+
+        for byte in array {
+            match tx.write(byte) {
+                Err(uart_error) => {
+                    return Err(uart_error);
+                }
+                Ok(_) => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    // clang-format off
+    macro_rules! error_state_write {
+        ($txd: expr, $byte3: expr, $is_signed: expr) => {
+            uart_write(
+                $txd,
+                (
+                    sign_u8!(b's', !$is_signed),
+                    sign_u8!(b'e', !$is_signed),
+                    $byte3,
+                ),
+            )
+        };
+    }
+    // clang-format on
+
     #[idle(shared = [shared_integer], local = [
-        indicator, indicator_timer, output_pulse, output_reset, output_inhibit])]
+        indicator, indicator_timer, output_pulse, output_reset, output_inhibit, main_instance])]
     fn idle(mut ctx: idle::Context) -> ! {
         // Scratch
-        let rx_packet: [u8; 4] = [0; 4];
+        let example_error = ErrorKind::Jam;
+        let is_signed: bool = false;
+        let rev_sign = !is_signed;
+        let aa = sign_u8!(b's', is_signed);
+        let example_send = match example_error {
+            ErrorKind::Empty => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x81, is_signed)
+            }
+            ErrorKind::Jam => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x82, is_signed)
+            }
+            ErrorKind::BillDouble => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x83, is_signed)
+            }
+            ErrorKind::NotEmit => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x84, is_signed)
+            }
+            ErrorKind::LengthLong => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x85, is_signed)
+            }
+            ErrorKind::LengthShort => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x86, is_signed)
+            }
+            ErrorKind::RejOver => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x87, is_signed)
+            }
+            ErrorKind::MotorLock => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x8a, is_signed)
+            }
+            ErrorKind::Incline => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x8e, is_signed)
+            }
+            // without macro, this is original pattern.
+            ErrorKind::Ok => uart_write(
+                &mut ctx.local.main_instance.tx,
+                (sign_u8!(b's', rev_sign), sign_u8!(b'e', rev_sign), 0x80),
+            ),
+            // Check it's 0x80 is ok later.
+            _ => Ok({}),
+        };
 
         // End of scratch
 
