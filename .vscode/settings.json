@@ -14,13 +14,13 @@
     },
     "editor.suggest.showStatusBar": true,
 	"debug.onTaskErrors": "abort",
-	"rust-analyzer.checkOnSave.allTargets": false,
-	"rust-analyzer.checkOnSave.extraArgs": [
-		"--target",
-		"thumbv6m-none-eabihf"
-	],
-	"rust-analyzer.updates.channel": "nightly",
-	"files.associations": {
-		"*.x": "linkerscript"
-	}
+	// "rust-analyzer.checkOnSave.allTargets": false,
+	// "rust-analyzer.checkOnSave.extraArgs": [
+	// 	"--target",
+	// 	"thumbv6m-none-eabihf"
+	// ],
+	// "rust-analyzer.updates.channel": "nightly",
+	// "files.associations": {
+	// 	"*.x": "linkerscript"
+	// }
 }

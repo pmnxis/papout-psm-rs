@@ -14,7 +14,7 @@
 | Peri  | GPIO | PinName     | PIN# | Mode    |
 | ----- | ---- | ----------- | ---- | ------- |
 | EXTI4 | PA4  | P_ERROR     | 11   | Float   |
-| EXTI5 | PA5  | P_EMOTY     | 12   | Float   |
+| EXTI5 | PA5  | P_EMPTY     | 12   | Float   |
 | EXTI6 | PA6  | P_OUT_PULSE | 13   | Float   |
 
 ### **SWD** - Single Wire Debug
