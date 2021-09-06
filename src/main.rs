@@ -21,7 +21,7 @@ mod app {
         rcc::*,
         serial::*,
         // stm::{NVIC vector list what you use.}
-        stm32::{TIM16, TIM17, USART2},
+        stm32::{EXTI, TIM16, TIM17, USART2},
         timer::Timer,
     };
 
@@ -81,6 +81,18 @@ mod app {
         data: u8,
     }
 
+    pub struct ParallelInput {
+        p_out_pulse: gpioa::PA7<Input<Floating>>,
+        p_empty: gpioa::PA8<Input<Floating>>,
+        p_error: gpioa::PA11<Input<Floating>>,
+    }
+
+    pub struct ParallelOutput {
+        p_pulse: gpioa::PA4<Output<PushPull>>,
+        p_reset: gpioa::PA5<Output<PushPull>>,
+        p_inhibit: gpioa::PA6<Output<PushPull>>,
+    }
+
     // TypeCasting Internally for some pattern.
     type UartTx = Tx<USART2, BasicConfig>;
     type UartTxError = stm32g0xx_hal::serial::Error;
@@ -106,9 +118,8 @@ mod app {
         heartbeat_timer: Timer<TIM16>,
         heartbeat: gpiob::PB8<Output<PushPull>>,
         serial: SerialTap,
-        output_pulse: gpioa::PA7<Output<PushPull>>,
-        output_reset: gpioa::PA8<Output<PushPull>>,
-        output_inhibit: gpioa::PA11<Output<PushPull>>,
+        p_in: ParallelInput,
+        p_out: ParallelOutput,
         testpoint: gpiob::PB6<Output<PushPull>>,
         main_instance: MainTask,
     }
@@ -117,6 +128,7 @@ mod app {
     #[allow(unused_mut)]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         let mut rcc = ctx.device.RCC.freeze(Config::hsi(Prescaler::NotDivided));
+        let mut exti = ctx.device.EXTI;
 
         let mut gpioa = ctx.device.GPIOA.split(&mut rcc);
         let gpiob = ctx.device.GPIOB.split(&mut rcc);
@@ -172,9 +184,26 @@ mod app {
                     buffer: [0, 0, 0, 0],
                     cnt: 0,
                 },
-                output_pulse: gpioa.pa7.into_push_pull_output(),
-                output_reset: gpioa.pa8.into_push_pull_output(),
-                output_inhibit: gpioa.pa11.into_push_pull_output(),
+                p_out: ParallelOutput {
+                    p_pulse: gpioa.pa4.into_push_pull_output(),
+                    p_reset: gpioa.pa5.into_push_pull_output(),
+                    p_inhibit: gpioa.pa6.into_push_pull_output(),
+                },
+                p_in: ParallelInput {
+                    p_out_pulse: gpioa
+                        .pa7
+                        .into_floating_input()
+                        .listen(SignalEdge::Falling, &mut exti),
+                    p_empty: gpioa
+                        .pa8
+                        .into_floating_input()
+                        .listen(SignalEdge::Falling, &mut exti),
+                    p_error: gpioa
+                        .pa11
+                        .into_floating_input()
+                        .listen(SignalEdge::Falling, &mut exti),
+                },
+
                 testpoint: testpoint,
                 main_instance: MainTask { tx: uart_tx },
             },
@@ -204,7 +233,6 @@ mod app {
         Ok(())
     }
 
-    // clang-format off
     macro_rules! error_state_write {
         ($txd: expr, $byte3: expr, $is_signed: expr) => {
             uart_write(
@@ -217,16 +245,14 @@ mod app {
             )
         };
     }
-    // clang-format on
 
     #[idle(shared = [shared_integer], local = [
-        indicator, indicator_timer, output_pulse, output_reset, output_inhibit, main_instance])]
+        indicator, indicator_timer, p_out, main_instance])]
     fn idle(mut ctx: idle::Context) -> ! {
         // Scratch
         let example_error = ErrorKind::Jam;
         let is_signed: bool = false;
         let rev_sign = !is_signed;
-        let aa = sign_u8!(b's', is_signed);
         let example_send = match example_error {
             ErrorKind::Empty => {
                 error_state_write!(&mut ctx.local.main_instance.tx, 0x81, is_signed)
@@ -277,14 +303,14 @@ mod app {
             block!(ctx.local.indicator_timer.wait()).unwrap();
 
             // 50ms
-            ctx.local.output_pulse.set_high();
-            ctx.local.output_reset.set_low();
-            ctx.local.output_inhibit.set_low();
+            ctx.local.p_out.p_pulse.set_high();
+            ctx.local.p_out.p_reset.set_low();
+            ctx.local.p_out.p_inhibit.set_low();
 
             block!(ctx.local.indicator_timer.wait()).unwrap();
 
             // 50ms
-            ctx.local.output_pulse.set_low();
+            ctx.local.p_out.p_pulse.set_low();
 
             block!(ctx.local.indicator_timer.wait()).unwrap();
 
@@ -315,6 +341,16 @@ mod app {
                 // Handle other error Overrun, Framing, Noise or Parity
                 rprintln!("Serial : Error-Other");
                 0
+            }
+            (Ok(b'$'), _) => {
+                // Start String Force Match but "DxS" pattern cannot.
+                if ctx.local.serial.cnt == 2 && (ctx.local.serial.buffer[1] & 0x20 == b'D') {
+                    ctx.local.serial.buffer[ctx.local.serial.cnt as usize] = b'$';
+                    ctx.local.serial.cnt + 1
+                } else {
+                    ctx.local.serial.buffer[0] = b'$';
+                    0
+                }
             }
             (Ok(byte), 4) => {
                 // Filled
