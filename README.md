@@ -24,6 +24,7 @@ Parallel model communicate with open-drain based on to pull-up lines (3in/3out).
 - Binary Size Notes : [Binary Size Notes](docs/BinarySize.md)
 - OpenOcd Issue Notes : [OpenOcd Issue Notes](docs/OpenOcdIssue.md)
 - Vscode Related Notes : [VSCODE](.vscode/README.md)
+- RTIC Useful document (v0.6 alpha) : https://rtic.rs/dev/book/en/by-example/tasks.html
 
 ## Flashing
 - Flashing : https://probe.rs/docs/tools/cargo-flash/
