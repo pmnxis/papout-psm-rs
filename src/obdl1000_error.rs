@@ -1,47 +1,47 @@
 #![no_std]
 
-pub enum ErrorKind {
-    UnknownShort = 0, // xtime <= 25 ms
-    Empty = 1,        // 50  ms
-    Jam = 2,          // 100 ms
-    BillDouble = 3,   // 150 ms
-    NotEmit = 4,      // 200 ms
-    LengthLong = 5,   // 250 ms
-    LengthShort = 6,  // 300 ms
-    RejOver = 7,      // 350 ms
-    TakeOut = 10,     // 500 ms
-    MotorLock = 12,   // 600 ms
-    Incline = 14,     // 700 ms
-    UnknownLong = 15, // 725 ms <= xtime
-    UnknownMid,
-    Ok, //?Maybe?
+pub enum ErrorType {
+    Ok,              // Maybe
+    Empty = 1,       // 50  ms
+    Jam = 2,         // 100 ms
+    BillDouble = 3,  // 150 ms
+    NotEmit = 4,     // 200 ms
+    LengthLong = 5,  // 250 ms
+    LengthShort = 6, // 300 ms
+    RejOver = 7,     // 350 ms
+    TakeOut = 10,    // 500 ms
+    MotorLock = 12,  // 600 ms
+    Incline = 14,    // 700 ms
 }
 
-impl ErrorKind {
-    pub fn back_to_enum(x: u32) -> ErrorKind {
+pub enum ParseError {
+    UnknownShort, // xtime <= 25 ms
+    UnknownLong,  // 725 ms <= xtime
+    UnknownMid,
+}
+
+impl ErrorType {
+    pub fn back_to_enum(x: u32) -> Result<ErrorType, ParseError> {
         match (x) {
-            0 => ErrorKind::UnknownShort,
-            1 => ErrorKind::Empty,
-            2 => ErrorKind::Jam,
-            3 => ErrorKind::BillDouble,
-            4 => ErrorKind::NotEmit,
-            5 => ErrorKind::LengthLong,
-            6 => ErrorKind::LengthShort,
-            7 => ErrorKind::RejOver,
-            10 => ErrorKind::TakeOut,
-            12 => ErrorKind::MotorLock,
-            14 => ErrorKind::Incline,
-            _ => {
-                if 14 < x {
-                    ErrorKind::UnknownLong
-                } else {
-                    ErrorKind::UnknownMid
-                }
-            }
+            0 => Err(ParseError::UnknownShort),
+            1 => Ok(ErrorType::Empty),
+            2 => Ok(ErrorType::Jam),
+            3 => Ok(ErrorType::BillDouble),
+            4 => Ok(ErrorType::NotEmit),
+            5 => Ok(ErrorType::LengthLong),
+            6 => Ok(ErrorType::LengthShort),
+            7 => Ok(ErrorType::RejOver),
+            10 => Ok(ErrorType::TakeOut),
+            12 => Ok(ErrorType::MotorLock),
+            14 => Ok(ErrorType::Incline),
+            _ => match (14 < x) {
+                true => Err(ParseError::UnknownLong),
+                false => Err(ParseError::UnknownMid),
+            },
         }
     }
 
-    pub fn msec_to_enum(msec: u32) -> ErrorKind {
-        ErrorKind::back_to_enum((msec + 24) / 50)
+    pub fn msec_to_enum(msec: u32) -> Result<ErrorType, ParseError> {
+        ErrorType::back_to_enum((msec + 24) / 50)
     }
 }

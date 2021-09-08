@@ -241,22 +241,19 @@ mod app {
         indicator, p_out, main_instance])]
     fn idle(mut ctx: idle::Context) -> ! {
         // Scratch
-        let example_error = ErrorKind::Jam; // get from somewhere later.
+        let example_error = ErrorType::msec_to_enum(222); // get from somewhere later.
         let is_signed: bool = false;
 
         match match example_error {
             // Rust style Enum Pattern.
-            (ErrorKind::UnknownLong
-            | ErrorKind::UnknownMid
-            | ErrorKind::UnknownShort
-            | ErrorKind::Ok) => {
+            (Err(_) | Ok(ErrorType::Ok)) => {
                 error_state_write!(&mut ctx.local.main_instance.tx, 0x80, is_signed)
             }
             // C-like Enum Pattern.
-            _ => {
+            Ok(error_type) => {
                 error_state_write!(
                     &mut ctx.local.main_instance.tx,
-                    0x80 + example_error as u8,
+                    0x80 + error_type as u8,
                     is_signed
                 )
             }
@@ -368,7 +365,7 @@ mod app {
             // dat time
             if (cstate.2 == true) {
                 let pulse_time = copied_tick - ctx.local.p_in.ptime_error_dat;
-                let kind = ErrorKind::back_to_enum(pulse_time);
+                let kind = ErrorType::back_to_enum(pulse_time);
             }
             // gap
             else {

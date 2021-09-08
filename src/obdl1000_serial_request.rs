@@ -1,7 +1,5 @@
 #![no_std]
 
-extern crate nb;
-
 pub enum SerialRequest {
     SayHi,
     Init,
