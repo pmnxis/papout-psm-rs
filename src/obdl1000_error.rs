@@ -1,4 +1,5 @@
 #![no_std]
+#![no_main]
 
 pub enum ErrorType {
     Ok,              // Maybe
