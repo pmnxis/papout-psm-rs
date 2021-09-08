@@ -22,6 +22,10 @@ features = ["cortex-m"]
 git = "https://github.com/stm32-rs/stm32g0xx-hal.git"
 features = ["stm32g030", "rt"]
 
+# Require for no_std generlic type for unsigned or signed type.
+[dependencies.num]
+version = "0.4"
+default-features = false
 
 # this lets you use `cargo fix`!
 [[bin]]

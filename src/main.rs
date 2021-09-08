@@ -6,11 +6,16 @@
 
 use panic_rtt_target as _panic_handler;
 
+/* declare submodules for application */
+mod obdl1000_error;
+mod obdl1000_serial_request;
+
 #[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true)]
 mod app {
     // use alloc::borrow::ToOwned;
     use core::convert::TryInto;
     use heapless::spsc::Queue;
+    use num::PrimInt;
     /* bring dependencies into scope */
     use nb::block;
     use rtt_target::{rprintln, rtt_init_print};
@@ -24,24 +29,9 @@ mod app {
         stm32::{EXTI, TIM14, TIM16, TIM17, USART2},
         timer::Timer,
     };
-
-    pub enum CommandActionKind {
-        SayHi,
-        Init,
-        Dispense,
-        HaltAction,
-        HaltActionCancel,
-        RemoveCount,
-        GetTotalDispensed,
-        RemoveTotalCount,
-        StateCheck,
-        ErrorCheck,
-        WrongCommand,
-        WrongStart,
-        WrongHash,
-        WrongStartHash,
-        WrongUnknown,
-    }
+    /* bring dependencies related application specific */
+    use crate::obdl1000_error::*;
+    use crate::obdl1000_serial_request::*;
 
     pub enum StateKind {
         Idle,
@@ -49,19 +39,6 @@ mod app {
         ActionHalted,
         SuccessDispense,
         ProblemDispense,
-    }
-
-    pub enum ErrorKind {
-        Empty,
-        Jam,
-        BillDouble,
-        NotEmit,
-        LengthLong,
-        LengthShort,
-        RejOver,
-        MotorLock,
-        Incline,
-        Ok, //?Maybe?
     }
 
     macro_rules! sign_u8 {
@@ -72,20 +49,18 @@ mod app {
 
     pub struct SerialTap {
         rx: Rx<USART2, BasicConfig>,
-        buffer: [u8; 4],
+        buffer: [u8; 5],
         cnt: u8,
-    }
-
-    pub struct CommandAction {
-        kind: CommandActionKind,
-        data: u8,
     }
 
     pub struct ParallelInput {
         p_out_pulse: gpioa::PA7<Input<Floating>>,
         p_empty: gpioa::PA8<Input<Floating>>,
         p_error: gpioa::PA11<Input<Floating>>,
-        prev_state: (bool, bool, bool, bool),
+        pstate: (bool, bool, bool, bool), // previous state
+        ptime_opulse: u32,                // previous time for out_pulse
+        ptime_error_dat: u32,             // previous time for error. (MCU : high / Real : low)
+        ptime_error_gap: u32,             // previous time for error. (MCU : low / Real : high)
     }
 
     pub struct ParallelOutput {
@@ -194,7 +169,7 @@ mod app {
                 heartbeat: gpiob.pb8.into_push_pull_output(),
                 serial: SerialTap {
                     rx: uart_rx,
-                    buffer: [0, 0, 0, 0],
+                    buffer: [0, 0, 0, 0, 0],
                     cnt: 0,
                 },
                 p_out: ParallelOutput {
@@ -214,7 +189,10 @@ mod app {
                         .pa11
                         .into_floating_input()
                         .listen(SignalEdge::All, &mut exti),
-                    prev_state: (false, false, false, false),
+                    pstate: (false, false, false, false),
+                    ptime_opulse: 0,
+                    ptime_error_dat: 0,
+                    ptime_error_gap: 0,
                 },
 
                 testpoint: testpoint,
@@ -263,45 +241,39 @@ mod app {
         indicator, p_out, main_instance])]
     fn idle(mut ctx: idle::Context) -> ! {
         // Scratch
-        let example_error = ErrorKind::Jam;
+        let example_error = ErrorKind::Jam; // get from somewhere later.
         let is_signed: bool = false;
-        let rev_sign = !is_signed;
-        let example_send = match example_error {
-            ErrorKind::Empty => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x81, is_signed)
+
+        match match example_error {
+            // Rust style Enum Pattern.
+            (ErrorKind::UnknownLong
+            | ErrorKind::UnknownMid
+            | ErrorKind::UnknownShort
+            | ErrorKind::Ok) => {
+                error_state_write!(&mut ctx.local.main_instance.tx, 0x80, is_signed)
             }
-            ErrorKind::Jam => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x82, is_signed)
+            // C-like Enum Pattern.
+            _ => {
+                error_state_write!(
+                    &mut ctx.local.main_instance.tx,
+                    0x80 + example_error as u8,
+                    is_signed
+                )
             }
-            ErrorKind::BillDouble => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x83, is_signed)
+        } {
+            Err(x) => {
+                rprintln!(
+                    "SendSerial : {}",
+                    match x {
+                        nb::Error::WouldBlock => "nb::Error::WouldBlock",
+                        _ => "Unknown Error",
+                    }
+                )
             }
-            ErrorKind::NotEmit => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x84, is_signed)
+            _ => {
+                // Nothing to do.
             }
-            ErrorKind::LengthLong => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x85, is_signed)
-            }
-            ErrorKind::LengthShort => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x86, is_signed)
-            }
-            ErrorKind::RejOver => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x87, is_signed)
-            }
-            ErrorKind::MotorLock => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x8a, is_signed)
-            }
-            ErrorKind::Incline => {
-                error_state_write!(&mut ctx.local.main_instance.tx, 0x8e, is_signed)
-            }
-            // without macro, this is original pattern.
-            ErrorKind::Ok => uart_write(
-                &mut ctx.local.main_instance.tx,
-                (sign_u8!(b's', rev_sign), sign_u8!(b'e', rev_sign), 0x80),
-            ),
-            // Check it's 0x80 is ok later.
-            _ => Ok({}),
-        };
+        }
 
         // End of scratch
 
@@ -372,23 +344,47 @@ mod app {
         // -- OBDL1000 [Active Low / Normal High]
         // -> 74hc4049 [Active High / Normal Low]
         // -> is_low() [Active Low / Normal High] Invert again
-        let current_state = (
+        let cstate = (
             ctx.local.p_in.p_out_pulse.is_low().unwrap(),
             ctx.local.p_in.p_empty.is_low().unwrap(),
             ctx.local.p_in.p_error.is_low().unwrap(),
         );
+        let mut pstate = &mut ctx.local.p_in.pstate;
         let mut copied_tick: u32 = 0;
         ctx.shared.tick.lock(|x| copied_tick = u32::clone(x));
 
-        if (current_state.0 != ctx.local.p_in.prev_state.0)
-            || (false != ctx.local.p_in.prev_state.3)
-        {}
-        if (current_state.1 != ctx.local.p_in.prev_state.1)
-            || (false != ctx.local.p_in.prev_state.3)
-        {}
-        if (current_state.2 != ctx.local.p_in.prev_state.2)
-            || (false != ctx.local.p_in.prev_state.3)
-        {}
+        if (cstate.0 != pstate.0) || (false != pstate.3) {
+            let pulse_time = copied_tick - ctx.local.p_in.ptime_opulse;
+            let is_valid_timing = (75 <= pulse_time) && (pulse_time <= 125);
+            if (cstate.0 && is_valid_timing) {
+                // Send One Paper Emit
+            }
+            ctx.local.p_in.ptime_opulse = copied_tick;
+        }
+        if (cstate.1 != pstate.1) || (false != pstate.3) {
+            // Send Empty State
+        }
+        if (cstate.2 != pstate.2) || (false != pstate.3) {
+            // dat time
+            if (cstate.2 == true) {
+                let pulse_time = copied_tick - ctx.local.p_in.ptime_error_dat;
+                let kind = ErrorKind::back_to_enum(pulse_time);
+            }
+            // gap
+            else {
+                // gap signal must be 50ms
+                // give
+                let pulse_time = copied_tick - ctx.local.p_in.ptime_error_gap;
+                let is_valid_timing = (35 <= pulse_time) && (pulse_time <= 65);
+            }
+
+            // TODO, Make clear only works at signal go to Low
+            // Report to queue
+        }
+
+        pstate.0 = cstate.0;
+        pstate.1 = cstate.1;
+        pstate.2 = cstate.2;
     }
 
     #[task(binds = USART2, shared = [tick], local = [serial])]
@@ -416,95 +412,22 @@ mod app {
                 }
             }
             (Ok(byte), 4) => {
-                // Filled
+                // This part will be compact with
+                ctx.local.serial.buffer[ctx.local.serial.cnt as usize] = byte;
+
                 rprintln!("Serial : Ok - {}", ctx.local.serial.cnt);
 
-                let hash: u8 = ctx.local.serial.buffer[1]
-                    + ctx.local.serial.buffer[2]
-                    + ctx.local.serial.buffer[3];
-
-                let serialTuple: (u8, u8, u8) = (
-                    ctx.local.serial.buffer[1],
-                    ctx.local.serial.buffer[2],
-                    ctx.local.serial.buffer[3],
-                );
-
-                let parsed: CommandAction = match (ctx.local.serial.buffer[0], hash == byte) {
-                    (b'$', true) => {
-                        match serialTuple {
-                            (b'H', b'I', b'?') => CommandAction {
-                                kind: CommandActionKind::SayHi,
-                                data: 0,
-                            },
-                            (b'I' | b'i', 0x00, 0x00) => CommandAction {
-                                kind: CommandActionKind::Init,
-                                data: 0,
-                            },
-                            (b'D', _, b'S') | (b'd', _, b's') => CommandAction {
-                                kind: CommandActionKind::Dispense,
-                                data: serialTuple.1,
-                            },
-                            (b'H' | b'h', 0x00, 0x00) => CommandAction {
-                                kind: CommandActionKind::HaltAction,
-                                data: 0,
-                            },
-                            (b'H', b'C', b'?') | (b'h', b'c', b'?') => CommandAction {
-                                kind: CommandActionKind::HaltActionCancel,
-                                data: 0,
-                            },
-                            (b'R', b'E', b'M') | (b'r', b'e', b'm') => CommandAction {
-                                kind: CommandActionKind::RemoveCount,
-                                data: 0,
-                            },
-                            (b'G', b'T', b'?') | (b'g', b't', b'?') => CommandAction {
-                                kind: CommandActionKind::GetTotalDispensed,
-                                data: 0,
-                            },
-                            (b'C', b'T', b'C') | (b'c', b't', b'c') => CommandAction {
-                                kind: CommandActionKind::RemoveTotalCount,
-                                data: 0,
-                            },
-                            (b'S' | b's', 0x00, 0x00) => CommandAction {
-                                kind: CommandActionKind::StateCheck,
-                                data: 0,
-                            },
-                            (b'S', b'E', b'R') | (b's', b'e', b'r') => CommandAction {
-                                kind: CommandActionKind::ErrorCheck,
-                                data: 0,
-                            },
-                            // default => (error)
-                            _ => CommandAction {
-                                kind: CommandActionKind::WrongCommand,
-                                data: 0,
-                            },
-                        }
-                    }
-                    (_, true) => CommandAction {
-                        kind: CommandActionKind::WrongStart,
-                        data: 0,
-                    },
-                    (b'$', false) => CommandAction {
-                        kind: CommandActionKind::WrongHash,
-                        data: 0,
-                    },
-                    _ => CommandAction {
-                        kind: CommandActionKind::WrongStartHash,
-                        data: 0,
-                    },
-                };
+                let parsed = SerialRequest::from_array(&ctx.local.serial.buffer);
 
                 // Send to queue.
-                match parsed.kind {
-                    CommandActionKind::WrongCommand
-                    | CommandActionKind::WrongStart
-                    | CommandActionKind::WrongHash
-                    | CommandActionKind::WrongStartHash => {
-                        rprintln!("Serial : WrongCommand");
-                    }
-                    _ => {
-                        rprintln!("Serial : YesCommand");
-                    }
-                }
+                // match parsed {
+                //     Err(_) => {
+                //         rprintln!("Serial : Error");
+                //     }
+                //     _ => {
+                //         rprintln!("Serial : YesCommand");
+                //     }
+                // }
 
                 0
             }
