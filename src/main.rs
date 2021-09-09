@@ -9,6 +9,7 @@ use panic_rtt_target as _panic_handler;
 /* declare submodules for application */
 mod obdl1000_error;
 mod obdl1000_serial_request;
+mod obdl1000_state;
 
 #[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true)]
 mod app {
@@ -32,14 +33,7 @@ mod app {
     /* bring dependencies related application specific */
     use crate::obdl1000_error::*;
     use crate::obdl1000_serial_request::*;
-
-    pub enum StateKind {
-        Idle,
-        WhileDispensing,
-        ActionHalted,
-        SuccessDispense,
-        ProblemDispense,
-    }
+    use crate::obdl1000_state::*;
 
     macro_rules! sign_u8 {
         ($foo: expr, $is_signed: expr) => {
@@ -437,6 +431,68 @@ mod app {
                 ctx.local.serial.buffer[ctx.local.serial.cnt as usize] = byte;
                 ctx.local.serial.cnt + 1
             }
+        }
+    }
+
+    // draft
+    fn trytrytry(request: SerialRequest, state: StateKind) -> bool {
+        match (request) {
+            // - Say Hi -
+            // SayHi always echo action.
+            SerialRequest::SayHi => true,
+
+            // - Init -
+            SerialRequest::Init => true, // not sure about this.
+
+            // - Dispense -
+            SerialRequest::Dispense(0) => false, // Dispnese 0 paper is not allowed.
+            SerialRequest::Dispense(_) => match (state) {
+                // Dispense is not allowed while busy.
+                StateKind::WhileDispensing => false,
+                // When halted(inhibit mode) not allowed.
+                StateKind::ActionHalted => false,
+                // If there's problem, not allowed.
+                StateKind::ProblemDispense(_) => false,
+                _ => true,
+            },
+
+            // - HaltAction -
+            SerialRequest::HaltAction => match (state) {
+                // Halted on halt action now allowed (???)
+                StateKind::ActionHalted => false,
+                _ => true,
+            },
+
+            // - HaltActionCancel -
+            SerialRequest::HaltActionCancel => match (state) {
+                // I don't know
+                _ => true,
+            },
+
+            // - RemoveCount -
+            SerialRequest::RemoveCount => match (state) {
+                // WhileDispensing counting value is locked, thus not allowed.
+                StateKind::WhileDispensing => false,
+                _ => true,
+            },
+
+            // - GetTotalDispensed -
+            SerialRequest::GetTotalDispensed => match (state) {
+                // WhileDispensing counting value is locked, thus not allowed.
+                StateKind::WhileDispensing => false,
+                _ => true,
+            },
+
+            // - RemoveTotalCount -
+            SerialRequest::RemoveTotalCount => match (state) {
+                // WhileDispensing counting value is locked, thus not allowed.
+                StateKind::WhileDispensing => false,
+                _ => true,
+            },
+
+            // - StateCheck & ErrorCheck -
+            SerialRequest::StateCheck => true, // always allowed to read.
+            SerialRequest::ErrorCheck => true, // always allowed to read.
         }
     }
 }

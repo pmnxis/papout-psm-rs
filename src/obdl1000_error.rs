@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+#[derive(Copy, Clone)]
 pub enum ErrorType {
     Ok,              // Maybe
     Empty = 1,       // 50  ms
@@ -44,5 +45,20 @@ impl ErrorType {
 
     pub fn msec_to_enum(msec: u32) -> Result<ErrorType, ParseError> {
         ErrorType::back_to_enum((msec + 24) / 50)
+    }
+
+    pub fn to_serial_code(&self) -> u8 {
+        0x80 + *self as u8
+    }
+
+    pub fn to_serial_core_data(&self, capital: bool) -> [u8; 3] {
+        match capital {
+            false => [b's', b'e', self.to_serial_code()],
+            true => [b'S', b'E', self.to_serial_code()],
+        }
+    }
+
+    pub fn to_parallel_time(&self) -> u32 {
+        50 * (*self as u32)
     }
 }
