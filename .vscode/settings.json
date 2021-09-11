@@ -19,7 +19,7 @@
 	// 	"--target",
 	// 	"thumbv6m-none-eabihf"
 	// ],
-	// "rust-analyzer.updates.channel": "nightly",
+	"rust-analyzer.updates.channel": "stable",
 	// "files.associations": {
 	// 	"*.x": "linkerscript"
 	// }
