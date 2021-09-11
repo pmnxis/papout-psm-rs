@@ -7,9 +7,7 @@
 use panic_rtt_target as _panic_handler;
 
 /* declare submodules for application */
-mod obdl1000_error;
-mod obdl1000_serial_request;
-mod obdl1000_state;
+mod obdl1000;
 
 #[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true)]
 mod app {
@@ -31,9 +29,10 @@ mod app {
         timer::Timer,
     };
     /* bring dependencies related application specific */
-    use crate::obdl1000_error::*;
-    use crate::obdl1000_serial_request::*;
-    use crate::obdl1000_state::*;
+    use crate::obdl1000::error_code::ErrorCode;
+    use crate::obdl1000::request::Request;
+    use crate::obdl1000::state_code::StateCode;
+    use crate::obdl1000::*;
 
     macro_rules! sign_u8 {
         ($foo: expr, $is_signed: expr) => {
@@ -235,12 +234,12 @@ mod app {
         indicator, p_out, main_instance])]
     fn idle(mut ctx: idle::Context) -> ! {
         // Scratch
-        let example_error = ErrorType::msec_to_enum(222); // get from somewhere later.
+        let example_error = ErrorCode::msec_to_enum(222); // get from somewhere later.
         let is_signed: bool = false;
 
         match match example_error {
             // Rust style Enum Pattern.
-            (Err(_) | Ok(ErrorType::Ok)) => {
+            (Err(_) | Ok(ErrorCode::Ok)) => {
                 error_state_write!(&mut ctx.local.main_instance.tx, 0x80, is_signed)
             }
             // C-like Enum Pattern.
@@ -359,7 +358,7 @@ mod app {
             // dat time
             if (cstate.2 == true) {
                 let pulse_time = copied_tick - ctx.local.p_in.ptime_error_dat;
-                let kind = ErrorType::back_to_enum(pulse_time);
+                let kind = ErrorCode::back_to_enum(pulse_time);
             }
             // gap
             else {
@@ -408,7 +407,7 @@ mod app {
 
                 rprintln!("Serial : Ok - {}", ctx.local.serial.cnt);
 
-                let parsed = SerialRequest::from_array(&ctx.local.serial.buffer);
+                let parsed = Request::from_array(&ctx.local.serial.buffer);
 
                 // Send to queue.
                 // match parsed {
@@ -435,64 +434,5 @@ mod app {
     }
 
     // draft
-    fn trytrytry(request: SerialRequest, state: StateKind) -> bool {
-        match (request) {
-            // - Say Hi -
-            // SayHi always echo action.
-            SerialRequest::SayHi => true,
 
-            // - Init -
-            SerialRequest::Init => true, // not sure about this.
-
-            // - Dispense -
-            SerialRequest::Dispense(0) => false, // Dispnese 0 paper is not allowed.
-            SerialRequest::Dispense(_) => match (state) {
-                // Dispense is not allowed while busy.
-                StateKind::WhileDispensing => false,
-                // When halted(inhibit mode) not allowed.
-                StateKind::ActionHalted => false,
-                // If there's problem, not allowed.
-                StateKind::ProblemDispense(_) => false,
-                _ => true,
-            },
-
-            // - HaltAction -
-            SerialRequest::HaltAction => match (state) {
-                // Halted on halt action now allowed (???)
-                StateKind::ActionHalted => false,
-                _ => true,
-            },
-
-            // - HaltActionCancel -
-            SerialRequest::HaltActionCancel => match (state) {
-                // I don't know
-                _ => true,
-            },
-
-            // - RemoveCount -
-            SerialRequest::RemoveCount => match (state) {
-                // WhileDispensing counting value is locked, thus not allowed.
-                StateKind::WhileDispensing => false,
-                _ => true,
-            },
-
-            // - GetTotalDispensed -
-            SerialRequest::GetTotalDispensed => match (state) {
-                // WhileDispensing counting value is locked, thus not allowed.
-                StateKind::WhileDispensing => false,
-                _ => true,
-            },
-
-            // - RemoveTotalCount -
-            SerialRequest::RemoveTotalCount => match (state) {
-                // WhileDispensing counting value is locked, thus not allowed.
-                StateKind::WhileDispensing => false,
-                _ => true,
-            },
-
-            // - StateCheck & ErrorCheck -
-            SerialRequest::StateCheck => true, // always allowed to read.
-            SerialRequest::ErrorCheck => true, // always allowed to read.
-        }
-    }
 }

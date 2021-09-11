@@ -1,27 +1,19 @@
 #![no_std]
 #![no_main]
 
-mod obdl1000_serial_request;
-mod obdl1000_state;
+use crate::obdl1000::request::Request;
 
-pub struct SerialAnswer {
-    request: SerialRequest,
+pub struct Reponse {
+    request: Request,
 }
 
-struct SerialAnswer {
-    capital: bool,
-}
-
-impl SerialAnswer {
-    use crate::obdl1000_serial_request::*;
-    use crate::obdl1000_state::*;
-
+impl Reponse {
     const FAULT_LARGE_CAPITAL: [u8; 3] = [b'N', b'S', b'!'];
     const FAULT_SMALL_CAPITAL: [u8; 3] = [b'b', b's', b'!'];
 
     // TX       : Always    WhileDisp   ActionHalted    SuccessDisp ProblemDisp
-    // SayHi    : O         
-    // Init     : 
+    // SayHi    : O
+    // Init     :
     // Halt     :
     // HaltCancel:
     // RemCnt   :
@@ -29,5 +21,4 @@ impl SerialAnswer {
     // RemTotal :
     // StateCheck:
     // ErrorCheck:
-
 }
