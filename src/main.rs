@@ -8,23 +8,23 @@ use panic_rtt_target as _panic_handler;
 
 /* declare submodules for application */
 mod obdl1000;
+mod rtc_monotonic;
 
-#[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true, dispatchers=[TIM14])]
+#[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true, dispatchers=[])]
 mod app {
     // use alloc::borrow::ToOwned;
     use core::convert::TryInto;
     use heapless::spsc::*;
     use num::PrimInt;
     /* bring dependencies into scope */
-    use dwt_systick_monotonic::DwtSystick;
     use nb::block;
-    use rtic::rtic_monotonic::Milliseconds;
     use rtt_target::{rprintln, rtt_init_print};
     use stm32g0xx_hal::{
         cortex_m::asm::delay,
         gpio::*,
         prelude::*,
         rcc::*,
+        rtc::*,
         serial::*,
         // stm::{NVIC vector list what you use.}
         stm32::{EXTI, TIM14, TIM16, TIM17, USART2},
@@ -35,8 +35,7 @@ mod app {
     use crate::obdl1000::request::Request;
     use crate::obdl1000::state_code::StateCode;
     use crate::obdl1000::*;
-
-    const MONO_HZ: u32 = 16_000_000; // 16 MHz
+    use crate::rtc_monotonic::RtcMonotonic;
 
     macro_rules! sign_u8 {
         ($foo: expr, $is_signed: expr) => {
@@ -80,9 +79,10 @@ mod app {
         data: i16,
     }
 
-    #[monotonic(binds = SysTick, default = true)]
-    type MyMono = DwtSystick<MONO_HZ>;
+    #[monotonic(binds = RTC_TAMP, default = true)]
+    type Stm32g0Mono = RtcMonotonic;
 
+    // type RtcMonotonic = Rtc<Count32Mode>;
     /* resources shared across RTIC tasks */
     #[shared]
     struct Shared {
@@ -110,16 +110,21 @@ mod app {
 
     #[init]
     #[allow(unused_mut)]
-    fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
+    fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics()) {
         // Clock and Monotonics configuration
         // this should be 16Mhz
         let mut rcc = ctx.device.RCC.freeze(Config::hsi(Prescaler::NotDivided));
         let mut exti = ctx.device.EXTI;
         // Coretx-M0 cannot use monotonics with DWT.
-        let mut dcb = ctx.core.DCB;
-        let dwt = ctx.core.DWT;
-        let systick = ctx.core.SYST;
-        let mono = DwtSystick::new(&mut dcb, dwt, systick, 16_000_000);
+        // initialize monotonic
+        let mut rtc_monotonic = RtcMonotonic::new(ctx.device.RTC.constrain(&mut rcc));
+        // // let rtc_clock_src = clocks
+        // //     .configure_gclk_divider_and_source(ClockGenId::GCLK2, 1, ClockSource::XOSC32K, false)
+        // //     .unwrap();
+        // clocks.configure_standby(ClockGenId::GCLK2, true);
+        // let rtc_clock = clocks.rtc(&rtc_clock_src).unwrap();
+        // let rtc = Rtc::count32_mode(peripherals.RTC, rtc_clock.freq(), &mut peripherals.PM);
+
         // End of Clock and Monotonics configruation.
 
         let mut gpioa = ctx.device.GPIOA.split(&mut rcc);
@@ -210,7 +215,7 @@ mod app {
                 testpoint: testpoint,
                 main_instance: MainTask { tx: uart_tx },
             },
-            init::Monotonics(mono),
+            init::Monotonics(rtc_monotonic),
         )
     }
 
@@ -395,7 +400,7 @@ mod app {
 
                 match error_code {
                     Some(_) => {
-                        late_error_check::spawn_after(Milliseconds(55)).unwrap();
+                        // late_error_check::spawn_after(Milliseconds(55)).unwrap();
                     }
                     _ => {}
                 }
@@ -420,11 +425,11 @@ mod app {
         pstate.2 = cstate.2;
     }
 
-    #[task]
-    fn late_error_check(_ctx: late_error_check::Context) {
-        // Periodic
-        rprintln!("Late Spwan");
-    }
+    // #[task]
+    // fn late_error_check(_ctx: late_error_check::Context) {
+    //     // Periodic
+    //     rprintln!("Late Spwan");
+    // }
 
     #[task(binds = USART2, shared = [tick, request_queue], local = [serial])]
     fn usart_isr(mut ctx: usart_isr::Context) {
