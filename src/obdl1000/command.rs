@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+#[repr(u16)]
 pub enum Command {
     SayHi,
     Init,

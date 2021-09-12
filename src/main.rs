@@ -13,7 +13,7 @@ mod obdl1000;
 mod app {
     // use alloc::borrow::ToOwned;
     use core::convert::TryInto;
-    use heapless::spsc::Queue;
+    use heapless::spsc::*;
     use num::PrimInt;
     /* bring dependencies into scope */
     use nb::block;
@@ -83,6 +83,8 @@ mod app {
         // Temporary use. (https://rtic.rs/dev/book/en/migration/migration_v5.html)
         tick: u32,
         ppulse_task: PPulse200HzTask,
+        request_queue: Queue<Request, 16>,
+        error_queue: Queue<Error, 16>,
     }
 
     /* resources local to specific RTIC tasks */
@@ -115,6 +117,8 @@ mod app {
         testpoint.set_high();
         // I don't know reason. for now MCU halt and restart.
         // end of temporary
+
+        // queue configuration
 
         // Rtt Debug start.
         rtt_init_print!();
@@ -155,6 +159,8 @@ mod app {
                     tcnt: 0,
                     data: 0,
                 },
+                request_queue: Queue::new(),
+                error_queue: Queue::new(),
             },
             Local {
                 tick_timer: tick_timer,
@@ -230,12 +236,18 @@ mod app {
         };
     }
 
-    #[idle(shared = [tick], local = [
+    #[idle(shared = [tick, request_queue], local = [
         indicator, p_out, main_instance])]
     fn idle(mut ctx: idle::Context) -> ! {
         // Scratch
         let example_error = ErrorCode::msec_to_enum(222); // get from somewhere later.
         let is_signed: bool = false;
+
+        let mut request: Option<Request> = None;
+        ctx.shared.request_queue.lock(|rb| {
+            let (mut poducer, mut consumer) = rb.split();
+            request = consumer.dequeue();
+        });
 
         match match example_error {
             // Rust style Enum Pattern.
@@ -329,7 +341,7 @@ mod app {
         });
     }
 
-    #[task(binds = EXTI4_15, shared = [tick], local = [p_in])]
+    #[task(binds = EXTI4_15, shared = [tick, error_queue], local = [p_in])]
     fn parallel_input_handler(mut ctx: parallel_input_handler::Context) {
         // -- OBDL1000 [Active Low / Normal High]
         // -> 74hc4049 [Active High / Normal Low]
@@ -377,7 +389,7 @@ mod app {
         pstate.2 = cstate.2;
     }
 
-    #[task(binds = USART2, shared = [tick], local = [serial])]
+    #[task(binds = USART2, shared = [tick, request_queue], local = [serial])]
     fn usart_isr(mut ctx: usart_isr::Context) {
         ctx.local.serial.cnt = match (ctx.local.serial.rx.read(), ctx.local.serial.cnt) {
             (Err(nb::Error::WouldBlock), _) => {
@@ -407,17 +419,13 @@ mod app {
 
                 rprintln!("Serial : Ok - {}", ctx.local.serial.cnt);
 
-                let parsed = Request::from_array(&ctx.local.serial.buffer);
-
-                // Send to queue.
-                // match parsed {
-                //     Err(_) => {
-                //         rprintln!("Serial : Error");
-                //     }
-                //     _ => {
-                //         rprintln!("Serial : YesCommand");
-                //     }
-                // }
+                match Request::from_array(&ctx.local.serial.buffer) {
+                    Ok(x) => ctx.shared.request_queue.lock(|rb| {
+                        let (mut poducer, mut consumer) = rb.split();
+                        poducer.enqueue(x);
+                    }),
+                    Err(_) => {}
+                }
 
                 0
             }
@@ -432,7 +440,4 @@ mod app {
             }
         }
     }
-
-    // draft
-
 }

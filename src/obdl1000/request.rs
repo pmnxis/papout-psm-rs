@@ -3,6 +3,8 @@
 
 use super::state_code::StateCode;
 
+#[repr(u16)]
+#[derive(Copy, Clone)]
 pub enum Request {
     SayHi,
     Init,
