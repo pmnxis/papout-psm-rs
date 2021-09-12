@@ -9,14 +9,16 @@ use panic_rtt_target as _panic_handler;
 /* declare submodules for application */
 mod obdl1000;
 
-#[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true)]
+#[rtic::app(device = stm32g0xx_hal::stm32, peripherals = true, dispatchers=[TIM14])]
 mod app {
     // use alloc::borrow::ToOwned;
     use core::convert::TryInto;
     use heapless::spsc::*;
     use num::PrimInt;
     /* bring dependencies into scope */
+    use dwt_systick_monotonic::DwtSystick;
     use nb::block;
+    use rtic::rtic_monotonic::Milliseconds;
     use rtt_target::{rprintln, rtt_init_print};
     use stm32g0xx_hal::{
         cortex_m::asm::delay,
@@ -33,6 +35,8 @@ mod app {
     use crate::obdl1000::request::Request;
     use crate::obdl1000::state_code::StateCode;
     use crate::obdl1000::*;
+
+    const MONO_HZ: u32 = 16_000_000; // 16 MHz
 
     macro_rules! sign_u8 {
         ($foo: expr, $is_signed: expr) => {
@@ -52,8 +56,8 @@ mod app {
         p_error: gpioa::PA11<Input<Floating>>,
         pstate: (bool, bool, bool, bool), // previous state
         ptime_opulse: u32,                // previous time for out_pulse
-        ptime_error_dat: u32,             // previous time for error. (MCU : high / Real : low)
-        ptime_error_gap: u32,             // previous time for error. (MCU : low / Real : high)
+        ptime_error: u32,                 // previous time for error. (MCU : high / Real : low)
+        temp_error: Option<ErrorCode>,
     }
 
     pub struct ParallelOutput {
@@ -76,6 +80,9 @@ mod app {
         data: i16,
     }
 
+    #[monotonic(binds = SysTick, default = true)]
+    type MyMono = DwtSystick<MONO_HZ>;
+
     /* resources shared across RTIC tasks */
     #[shared]
     struct Shared {
@@ -84,7 +91,7 @@ mod app {
         tick: u32,
         ppulse_task: PPulse200HzTask,
         request_queue: Queue<Request, 16>,
-        error_queue: Queue<Error, 16>,
+        error_queue: Queue<Option<ErrorCode>, 16>,
     }
 
     /* resources local to specific RTIC tasks */
@@ -104,8 +111,16 @@ mod app {
     #[init]
     #[allow(unused_mut)]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
+        // Clock and Monotonics configuration
+        // this should be 16Mhz
         let mut rcc = ctx.device.RCC.freeze(Config::hsi(Prescaler::NotDivided));
         let mut exti = ctx.device.EXTI;
+        // Coretx-M0 cannot use monotonics with DWT.
+        let mut dcb = ctx.core.DCB;
+        let dwt = ctx.core.DWT;
+        let systick = ctx.core.SYST;
+        let mono = DwtSystick::new(&mut dcb, dwt, systick, 16_000_000);
+        // End of Clock and Monotonics configruation.
 
         let mut gpioa = ctx.device.GPIOA.split(&mut rcc);
         let gpiob = ctx.device.GPIOB.split(&mut rcc);
@@ -117,8 +132,6 @@ mod app {
         testpoint.set_high();
         // I don't know reason. for now MCU halt and restart.
         // end of temporary
-
-        // queue configuration
 
         // Rtt Debug start.
         rtt_init_print!();
@@ -190,14 +203,14 @@ mod app {
                         .listen(SignalEdge::All, &mut exti),
                     pstate: (false, false, false, false),
                     ptime_opulse: 0,
-                    ptime_error_dat: 0,
-                    ptime_error_gap: 0,
+                    ptime_error: 0,
+                    temp_error: None,
                 },
 
                 testpoint: testpoint,
                 main_instance: MainTask { tx: uart_tx },
             },
-            init::Monotonics(),
+            init::Monotonics(mono),
         )
     }
 
@@ -369,15 +382,33 @@ mod app {
         if (cstate.2 != pstate.2) || (false != pstate.3) {
             // dat time
             if (cstate.2 == true) {
-                let pulse_time = copied_tick - ctx.local.p_in.ptime_error_dat;
-                let kind = ErrorCode::back_to_enum(pulse_time);
+                ctx.local.p_in.ptime_error = copied_tick;
             }
             // gap
             else {
+                let pulse_time = copied_tick - ctx.local.p_in.ptime_error;
+
+                let error_code = match ErrorCode::back_to_enum(pulse_time) {
+                    Ok(code) => Some(code),
+                    _ => None,
+                };
+
+                match error_code {
+                    Some(_) => {
+                        late_error_check::spawn_after(Milliseconds(55)).unwrap();
+                    }
+                    _ => {}
+                }
+
+                ctx.shared.error_queue.lock(|rb| {
+                    let (mut poducer, mut consumer) = rb.split();
+                    poducer.enqueue(error_code);
+                });
+
                 // gap signal must be 50ms
                 // give
-                let pulse_time = copied_tick - ctx.local.p_in.ptime_error_gap;
-                let is_valid_timing = (35 <= pulse_time) && (pulse_time <= 65);
+                // let pulse_time = copied_tick - ctx.local.p_in.ptime_error_gap;
+                // let is_valid_timing = (35 <= pulse_time) && (pulse_time <= 65);
             }
 
             // TODO, Make clear only works at signal go to Low
@@ -387,6 +418,12 @@ mod app {
         pstate.0 = cstate.0;
         pstate.1 = cstate.1;
         pstate.2 = cstate.2;
+    }
+
+    #[task]
+    fn late_error_check(_ctx: late_error_check::Context) {
+        // Periodic
+        rprintln!("Late Spwan");
     }
 
     #[task(binds = USART2, shared = [tick, request_queue], local = [serial])]
@@ -440,4 +477,6 @@ mod app {
             }
         }
     }
+
+    // draft
 }
