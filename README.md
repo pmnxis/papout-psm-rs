@@ -16,7 +16,7 @@ Parallel model communicate with open-drain based on to pull-up lines (3in/3out).
 
 - HW repo : `release asap` (Kicad 5.99) 
 - HW Schematics : [Schematic](docs/PapoutPSM-HW-Schematics.pdf)
-- Used MCU : `STM32G030F6P6` (Cortex-M0+, 32KiB Flash, 8KiB SRAM, TSSOP-20)
+- Used MCU : `STM32G031F8P6` (Cortex-M0+, 32KiB Flash, 8KiB SRAM, TSSOP-20)
 - GPIO Assign Map : [Peripheral](docs/Peripheral.md)
 
 
@@ -29,7 +29,7 @@ Parallel model communicate with open-drain based on to pull-up lines (3in/3out).
 ## Flashing
 - Flashing : https://probe.rs/docs/tools/cargo-flash/
 ```shell
-cargo flash --release --chip STM32G030F6Px
+cargo flash --release --chip STM32G031F8Px
 ```
 
 ## Debug - Fancy
@@ -40,7 +40,7 @@ cargo install --git https://github.com/probe-rs/probe-rs probe-rs-debugger
 # Install probe-rs-debugger for Vscode with latest VSIX
 # https://github.com/probe-rs/vscode/releases
 
-probe-rs-debugger debug --chip STM32G030F6Px --speed 2000 --probe 0483:374f --program-binary ./target/thumbv6m-none-eabi/debug/papout-psm-rs --protocol swd --connect-under-reset  --core-index 0 --flashing-enabled --reset-after-flashing --halt-after-reset
+probe-rs-debugger debug --chip STM32G031F8Px --speed 2000 --probe 0483:374f --program-binary target/thumbv6m-none-eabi/debug/papout-psm-rs --protocol swd --connect-under-reset  --core-index 0 --flashing-enabled --reset-after-flashing --halt-after-reset
 ```
 
 ## Debuging with RTT-Target 
@@ -48,7 +48,7 @@ probe-rs-debugger debug --chip STM32G030F6Px --speed 2000 --probe 0483:374f --pr
 ```
 # Install cargo-embed if you don't have
 cargo install cargo-embed
-cargo-embed --chip STM32G030F6Px
+cargo-embed --chip STM32G031F8Px
 ```
 cargo-embed serve you terminal between target and host through rust and SWD.
 

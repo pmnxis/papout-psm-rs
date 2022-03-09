@@ -480,19 +480,19 @@
       <datasheet>https://www.st.com/resource/en/datasheet/stm32g071kb.pdf</datasheet>
       <fields>
         <field name="LCSC Part">C529330</field>
-        <field name="MFR.Part#">STM32G030F6P6TR</field>
+        <field name="MFR.Part#">STM32G031F8P6TR</field>
         <field name="Manufacturer">STMicroelectronics</field>
         <field name="Mount">SMD</field>
-        <field name="ODR.Part#">STM32G030F6P6TR</field>
+        <field name="ODR.Part#">STM32G031F8P6TR</field>
         <field name="Packaging">TSSOP-20</field>
         <field name="Supplier">JLCPCB-Extended</field>
       </fields>
       <libsource lib="STM32G0" part="STM32G030F6" description="ARM Cortex-M0+ MCU, 64 kB flash, 8 kB SRAM, 64 MHz, 1.7-3.6 V, 17 GPIO, TSSOP-20"/>
       <property name="LCSC Part" value="C529330"/>
-      <property name="MFR.Part#" value="STM32G030F6P6TR"/>
+      <property name="MFR.Part#" value="STM32G031F8P6TR"/>
       <property name="Manufacturer" value="STMicroelectronics"/>
       <property name="Mount" value="SMD"/>
-      <property name="ODR.Part#" value="STM32G030F6P6TR"/>
+      <property name="ODR.Part#" value="STM32G031F8P6TR"/>
       <property name="Packaging" value="TSSOP-20"/>
       <property name="Supplier" value="JLCPCB-Extended"/>
       <property name="Sheetname" value=""/>

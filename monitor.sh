@@ -1,1 +1,1 @@
-cargo-embed  --release --chip STM32G030F6Px
+cargo-embed  --release --chip STM32G031F8Px
