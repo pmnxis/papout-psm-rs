@@ -9,6 +9,7 @@ examples/
 .cargo/git/*
 logs
 logs/**
+.DS_Store
 
 # editor files
 .vscode/*
