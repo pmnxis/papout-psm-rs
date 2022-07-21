@@ -1,15 +1,27 @@
 {
 	"editor.formatOnSave": false,
     "[cpp]": {
-        "editor.quickSuggestions": true,
+        "editor.quickSuggestions": {
+            "comments": "on",
+            "strings": "on",
+            "other": "on"
+        },
         "editor.formatOnSave": true
     },
     "[c]": {
-        "editor.quickSuggestions": true,
+        "editor.quickSuggestions": {
+            "comments": "on",
+            "strings": "on",
+            "other": "on"
+        },
         "editor.formatOnSave": true
     },
     "[rust]": {
-        "editor.quickSuggestions": true,
+        "editor.quickSuggestions": {
+            "comments": "on",
+            "strings": "on",
+            "other": "on"
+        },
         "editor.formatOnSave": true
     },
     "editor.suggest.showStatusBar": true,
