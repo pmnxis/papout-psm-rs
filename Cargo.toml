@@ -14,7 +14,7 @@ panic-msp430 = "0.3.0"
 # targeting a different device, you may need to change the version of your
 # crate. Your PAC must be generated with svd2rust version v0.20.0 or later.
 [dependencies.msp430fr2433]
-version = "0.3.0"
+version = "0.1.0"
 features = ["rt"]
 
 
@@ -28,10 +28,10 @@ fixed-macro = "1.1.1"
 version = "1.7.2"
 default_features = false
 
-[dev-dependencies.tcn75a]
-version = "0.2.0"
-git = "https://github.com/cr1901/i2c-server"
-branch = "embedded-hal-1.0"
+#[dev-dependencies.tcn75a]
+#version = "0.2.0"
+#git = "https://github.com/cr1901/i2c-server"
+#branch = "embedded-hal-1.0"
 
 [patch.crates-io.fixed-macro]
 git = "https://github.com/kvinwang/fixed-macro"
